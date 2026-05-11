@@ -12,6 +12,32 @@ export async function ankiPost(action, params = {}) {
   return res.json();
 }
 
+// Extract every `<!--fluency:{...}-->` machine-data block from a piece of text.
+// Returns an array of {original, corrected, reason}.
+// This is the CURRENT (post-2026-05-11 PM) primary format; the human-visible
+// `(Fluency note: ...)` block is for reading only.
+export function extractFluencyDataBlocks(text) {
+  if (!text || typeof text !== 'string') return [];
+  const out = [];
+  const re = /<!--\s*fluency:\s*(\{[\s\S]*?\})\s*-->/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    try {
+      const data = JSON.parse(m[1]);
+      if (typeof data.o === 'string' && typeof data.c === 'string') {
+        out.push({
+          original: data.o,
+          corrected: data.c,
+          reason: typeof data.r === 'string' ? data.r : '',
+        });
+      }
+    } catch {
+      // malformed JSON in fluency block — skip
+    }
+  }
+  return out;
+}
+
 // Extract every `(Fluency note ...)` block from a piece of text using paren balancing.
 export function extractFluencyNotes(text) {
   if (!text || typeof text !== 'string') return [];
@@ -410,6 +436,24 @@ export function extractFromTranscript(filePath) {
 
     for (const block of content) {
       if (block?.type !== 'text') continue;
+
+      // PRIMARY: machine-data blocks (current format)
+      const dataBlocks = extractFluencyDataBlocks(block.text);
+      if (dataBlocks.length > 0) {
+        for (const d of dataBlocks) {
+          out.push({
+            pair: { original: d.original, corrected: d.corrected },
+            reason: d.reason,
+            sourceUuid: entry.uuid,
+            sourceFile: filePath,
+            raw: 'machine-block',
+            format: 'machine-block',
+          });
+        }
+        continue; // skip legacy parsing if we found machine blocks
+      }
+
+      // LEGACY fallback: parse `(Fluency note ...)` blocks for old transcripts.
       const notes = extractFluencyNotes(block.text);
       if (notes.length === 0) continue;
 

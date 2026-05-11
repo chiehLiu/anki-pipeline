@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { extractFluencyNotes, parseNote } from './fluency_lib.mjs';
+import { extractFluencyNotes, parseNote, extractFluencyDataBlocks } from './fluency_lib.mjs';
 
 const LOG = path.join(process.env.HOME, '.claude/fluency_log.jsonl');
 const CURSOR_DIR = path.join(process.env.HOME, '.claude/.fluency_cursors');
@@ -57,6 +57,25 @@ async function main() {
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type !== 'text') continue;
+
+      // PRIMARY: machine-data blocks (current format)
+      const dataBlocks = extractFluencyDataBlocks(block.text);
+      if (dataBlocks.length > 0) {
+        for (const d of dataBlocks) {
+          newEntries.push({
+            ts: new Date().toISOString(),
+            sessionId,
+            sourceUuid: entry.uuid || entry.message?.id,
+            original: d.original,
+            corrected: d.corrected,
+            reason: d.reason,
+            format: 'machine-block',
+          });
+        }
+        continue; // skip legacy parsing
+      }
+
+      // LEGACY fallback: parse `(Fluency note ...)` blocks (old formats)
       const notes = extractFluencyNotes(block.text);
       for (const note of notes) {
         const parsed = parseNote(note);

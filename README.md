@@ -131,11 +131,24 @@ The user is not a native English speaker and is actively working to improve. Hel
 
 **How to format the correction:**
 - Place it inline at the **top** of your response, before answering the actual question.
-- Use the format: `(Fluency note: "<corrected sentence with ~~wrong~~ right strikethrough marks>" — <brief reason if the change is non-obvious>)`
-- Mark each change inline with markdown strikethrough: `~~wrong~~` immediately followed by `right` (the corrected token). The reader skims the corrected version by mentally skipping the struck-out spans; the Anki capture script reconstructs both original and corrected from the diff. Example: `(Fluency note: "~~this~~ these 51 notes ~~is good~~ are fine" — plural agreement)`.
-- For multi-word corrected spans, wrap in braces: `~~old phrase~~ {new phrase}`. Single-word swaps need no braces.
-- For pure spelling/typo corrections: still use the format (e.g., `~~creat~~ create`). The classifier sees these as single-word, character-level fixes and routes to the Spelling sub-deck.
-- Keep it brief — one quoted sentence per note. If a message needs corrections in multiple distinct sentences, write multiple notes.
+- Use TWO parts: a clean human-readable fluency note, immediately followed by a hidden HTML comment carrying the machine-readable data.
+- **Human part** (visible, easy to read):
+  `(Fluency note: "<corrected sentence>" — <brief reason if non-obvious>)`
+  Quote the natural rewrite. No inline diff markers. The reader sees only the corrected version.
+- **Machine part** (hidden, on the very next line):
+  `<!--fluency:{"o":"<original>","c":"<corrected>","r":"<reason>"}-->`
+  - `o` = the user's original wording verbatim (a real substring of their message, with all original errors preserved).
+  - `c` = the corrected version (same string as in the visible note's quote).
+  - `r` = the reason (same as in the visible note's reason).
+  - Use proper JSON-escaped strings (`\"` for quotes, `\\` for backslashes, `\n` for newlines).
+  - The HTML comment renders invisibly in markdown viewers and Claude Code's terminal; the Anki capture script parses it directly from the transcript.
+- Full example:
+  ```
+  (Fluency note: "These 51 notes are fine." — plural agreement.)
+  <!--fluency:{"o":"this 51 notes is good","c":"These 51 notes are fine.","r":"plural agreement"}-->
+  ```
+- For multiple separate sentences each needing correction, write multiple notes — each with its own visible block and its own machine comment.
+- For pure spelling/typo corrections, still use both parts (e.g., `o:"creat", c:"create"`). The classifier sees these as single-word, character-level fixes and routes to the Spelling sub-deck.
 - If the message is already fluent and natural, skip the note entirely. Don't force corrections.
 
 **Scope:**
@@ -236,17 +249,19 @@ Cards are auto-classified:
 
 ---
 
-## Fluency-note format conventions
+## Fluency-note format
 
-Inside a `(Fluency note: "…" — reason)` block, the quoted sentence uses inline strikethrough diffs:
+Each correction is **two parts**, written together:
 
-| Pattern | Meaning |
-|---|---|
-| `~~wrong~~ right` | Single-token swap. The corrected text is the next single token after the closing `~~`. |
-| `~~wrong~~ {right phrase}` | Multi-token swap. The corrected text is everything inside the braces. |
-| (no strikethrough) | Text shared between original and corrected. |
+```
+(Fluency note: "<corrected sentence>" — <reason>)
+<!--fluency:{"o":"<original>","c":"<corrected>","r":"<reason>"}-->
+```
 
-To recover the original, the parser replaces each `~~X~~ Y` (or `~~X~~ {Y phrase}`) with `X`. To recover the corrected, it replaces them with `Y`.
+- The **visible block** is human-readable only — clean corrected sentence + brief reason.
+- The **HTML comment** is for the parser — JSON with `o` (original), `c` (corrected), and `r` (reason). Most markdown renderers (including Claude Code's terminal) hide HTML comments, so the reader sees only the visible block.
+
+The parser reads the JSON in the comment directly — no diff reconstruction needed. Legacy formats (inline strikethrough `~~wrong~~ right`, verbose-pair `you wrote: X → Y`, and corrected-only) are still supported in `fluency_lib.mjs` as fallbacks for old transcripts.
 
 ---
 
