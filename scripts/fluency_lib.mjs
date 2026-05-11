@@ -12,10 +12,30 @@ export async function ankiPost(action, params = {}) {
   return res.json();
 }
 
+// Heuristic: reject placeholder/template content (e.g., format examples in
+// docs that look like real fluency notes). Examples to skip:
+//   o:"<original>", c:"<corrected>"  — angle-bracket placeholders
+//   o:"X", c:"Y"                     — single-letter generic placeholders
+//   o:"foo", c:"bar"                 — classic placeholder words
+export function isPlaceholderPair(o, c) {
+  if (typeof o !== 'string' || typeof c !== 'string') return true;
+  const oo = o.trim(), cc = c.trim();
+  if (!oo || !cc) return true;
+  // Angle-bracketed placeholders like <original>, <corrected>, <something>
+  if (/<\w[\w-]*>/.test(oo) || /<\w[\w-]*>/.test(cc)) return true;
+  // Single-letter placeholders (X, Y, A, B…)
+  if (/^[A-Z]$/.test(oo) && /^[A-Z]$/.test(cc)) return true;
+  // Classic generic placeholder words used in docs
+  const placeholders = new Set(['foo', 'bar', 'baz', 'placeholder', 'example', 'template', 'something']);
+  if (placeholders.has(oo.toLowerCase()) && placeholders.has(cc.toLowerCase())) return true;
+  return false;
+}
+
 // Extract every `<!--fluency:{...}-->` machine-data block from a piece of text.
 // Returns an array of {original, corrected, reason}.
 // This is the CURRENT (post-2026-05-11 PM) primary format; the human-visible
 // `(Fluency note: ...)` block is for reading only.
+// Placeholder/template entries are filtered out — see isPlaceholderPair().
 export function extractFluencyDataBlocks(text) {
   if (!text || typeof text !== 'string') return [];
   const out = [];
@@ -25,6 +45,7 @@ export function extractFluencyDataBlocks(text) {
     try {
       const data = JSON.parse(m[1]);
       if (typeof data.o === 'string' && typeof data.c === 'string') {
+        if (isPlaceholderPair(data.o, data.c)) continue;
         out.push({
           original: data.o,
           corrected: data.c,
@@ -200,11 +221,10 @@ export function classify(pair, reason) {
 }
 
 // Build Anki note objects from a list of {pair, reason, sourceUuid, sourceFile}.
-// New card shape (per user feedback 2026-05-11):
-//   Front: the ORIGINAL (wrong) sentence with a "spot the issue" prompt
-//   Back:  the corrected version + word-level diff + reason
+// Spelling cards are compact word-pair layout; Grammar cards are sentence-pair
+// with a word-level diff. Placeholder entries are filtered out.
 export function buildNotes(corrections, commonTags = ['English', 'PersonalErrors']) {
-  return corrections.map((entry) => {
+  return corrections.filter((entry) => !isPlaceholderPair(entry.pair?.original, entry.pair?.corrected)).map((entry) => {
     const { pair, reason, sourceUuid } = entry;
     const category = classify(pair, reason);
     const deckName = category === 'Spelling'
