@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+*.log
+
+# Don't commit the live data — only the pipeline code
+fluency_log.jsonl
+fluency_log.archive.jsonl
+.fluency_cursors/
