@@ -147,8 +147,11 @@ The user is not a native English speaker and is actively working to improve. Hel
   (Fluency note: "These 51 notes are fine." — plural agreement.)
   <!--fluency:{"o":"this 51 notes is good","c":"These 51 notes are fine.","r":"plural agreement"}-->
   ```
+- **Split per correction type.** Each distinct correction gets its own fluency note (visible block + machine comment). Don't bundle a typo and a grammar fix into one note.
+  - **Spelling typos:** write a tight word-pair note. `o` is the misspelled token, `c` is the correct one. Example: `o:"verison", c:"version"`. The classifier sees single-word `o`+`c` → Spelling sub-deck → produces a compact word→word card.
+  - **Grammar / phrasing fixes:** quote the full sentence. `o` is the user's original sentence, `c` is the natural rewrite. Multi-word `c` → Grammar sub-deck → produces a sentence-pair card with diff.
+  - If a single user sentence has BOTH a typo and a grammar fix, write two separate notes — one Spelling, one Grammar. Don't mash them into one sentence-level note.
 - For multiple separate sentences each needing correction, write multiple notes — each with its own visible block and its own machine comment.
-- For pure spelling/typo corrections, still use both parts (e.g., `o:"creat", c:"create"`). The classifier sees these as single-word, character-level fixes and routes to the Spelling sub-deck.
 - If the message is already fluent and natural, skip the note entirely. Don't force corrections.
 
 **Scope:**

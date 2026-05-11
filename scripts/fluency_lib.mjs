@@ -179,30 +179,23 @@ export function applyStrikethroughDiff(text) {
 }
 
 // Classify a correction pair as Spelling or Grammar.
+// Rule: Spelling cards are ONLY for true word-pair corrections — both original
+// and corrected are a single token. Anything multi-word (even if the reason
+// mentions "typo") is Grammar. This keeps Spelling cards compact (word→word)
+// and routes mixed sentence-level corrections to Grammar where the full
+// context is useful.
 export function classify(pair, reason) {
-  const reasonLower = (reason || '').toLowerCase();
-
-  // Strong spelling signals
-  if (/\b(typo|spelling|misspell|misspelled|spell)\b/.test(reasonLower)) {
-    return 'Spelling';
-  }
-
-  // If we have the original, compare structurally
-  if (pair.original) {
-    const o = pair.original.trim();
-    const c = pair.corrected.trim();
-    const oWords = o.split(/\s+/).filter(Boolean);
-    const cWords = c.split(/\s+/).filter(Boolean);
+  if (pair.original && pair.corrected) {
+    const oWords = pair.original.trim().split(/\s+/).filter(Boolean);
+    const cWords = pair.corrected.trim().split(/\s+/).filter(Boolean);
     if (oWords.length === 1 && cWords.length === 1) {
-      // Single-word change at character level → Spelling
       return 'Spelling';
     }
-  } else {
-    // Old format, no original — fall back to word count heuristic
+  } else if (pair.corrected) {
+    // Legacy: no original captured. Fall back to corrected word count.
     const cWords = pair.corrected.trim().split(/\s+/).filter(Boolean);
     if (cWords.length === 1) return 'Spelling';
   }
-
   return 'Grammar';
 }
 
@@ -219,8 +212,13 @@ export function buildNotes(corrections, commonTags = ['English', 'PersonalErrors
       : 'English::Personal Errors::Grammar';
 
     let front, back, extraTags = [];
-    if (pair.original) {
-      // Sentence-pair card
+    if (category === 'Spelling' && pair.original) {
+      // Compact word-pair card: just the wrong word → the right word + reason.
+      // No "Spot the issue" prefix and no diff section — overkill for one word.
+      front = `<span style="font-size:1.4em">${htmlEscape(pair.original)}</span>`;
+      back = `<span style="font-size:1.4em;color:#27ae60;font-weight:bold">${htmlEscape(pair.corrected)}</span>${reason ? `<br><br><i>${htmlEscape(reason)}</i>` : ''}`;
+    } else if (pair.original) {
+      // Grammar sentence-pair card with full diff visualization.
       const diff = renderWordDiff(pair.original, pair.corrected);
       front = `<i>Spot the issue:</i><br><br>${htmlEscape(pair.original)}`;
       back = [
