@@ -17,17 +17,30 @@ export async function ankiPost(action, params = {}) {
 //   o:"<original>", c:"<corrected>"  — angle-bracket placeholders
 //   o:"X", c:"Y"                     — single-letter generic placeholders
 //   o:"foo", c:"bar"                 — classic placeholder words
+// IMPORTANT: a null/missing `original` is NOT a placeholder — it's a legacy
+// note where the original wasn't captured. Those go to the degraded-card
+// path in buildNotes(), not to the rubbish bin.
 export function isPlaceholderPair(o, c) {
-  if (typeof o !== 'string' || typeof c !== 'string') return true;
-  const oo = o.trim(), cc = c.trim();
-  if (!oo || !cc) return true;
-  // Angle-bracketed placeholders like <original>, <corrected>, <something>
-  if (/<\w[\w-]*>/.test(oo) || /<\w[\w-]*>/.test(cc)) return true;
-  // Single-letter placeholders (X, Y, A, B…)
-  if (/^[A-Z]$/.test(oo) && /^[A-Z]$/.test(cc)) return true;
-  // Classic generic placeholder words used in docs
+  // Corrected is required; if missing, definitely junk
+  if (typeof c !== 'string' || !c.trim()) return true;
+  const cc = c.trim();
+
+  // Check c alone for placeholder shapes
+  if (/<\w[\w-]*>/.test(cc)) return true;
+  if (/^[A-Z]$/.test(cc)) return true;
   const placeholders = new Set(['foo', 'bar', 'baz', 'placeholder', 'example', 'template', 'something']);
-  if (placeholders.has(oo.toLowerCase()) && placeholders.has(cc.toLowerCase())) return true;
+  if (placeholders.has(cc.toLowerCase())) {
+    // Only flag if original is also a placeholder word, else c might just be a real one-word correction
+    if (typeof o === 'string' && placeholders.has(o.trim().toLowerCase())) return true;
+  }
+
+  // If original is present, check it for placeholder shapes too
+  if (typeof o === 'string' && o.trim()) {
+    const oo = o.trim();
+    if (/<\w[\w-]*>/.test(oo)) return true;
+    if (/^[A-Z]$/.test(oo) && /^[A-Z]$/.test(cc)) return true;
+  }
+
   return false;
 }
 
